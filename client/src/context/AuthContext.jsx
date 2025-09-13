@@ -55,12 +55,15 @@ export const AuthProvider = ({ children }) => {
   // Login function
   const login = useCallback(async () => {
     try {
+      setIsLoading(true);
       setError(null);
       const result = authService.signInWithGoogle();
       return result;
     } catch (error) {
       setError(error.message);
       return { success: false, error: error.message };
+    }finally{
+      setIsLoading(false);
     }
   }, []);
 
@@ -87,6 +90,7 @@ export const AuthProvider = ({ children }) => {
   // Refresh user data
   const refreshUser = useCallback(async () => {
     try {
+      setIsLoading(true);
       setError(null);
       const result = await authService.refreshUser();
       
@@ -98,6 +102,9 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       setError(error.message);
       return { success: false, error: error.message };
+    }
+     finally {
+      setIsLoading(false);
     }
   }, []);
 

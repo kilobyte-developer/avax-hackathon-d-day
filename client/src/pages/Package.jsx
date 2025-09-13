@@ -1,39 +1,130 @@
 // src/components/Package.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Plane, Briefcase, Heart, ArrowRight, X, Calendar, MapPin } from "lucide-react";
+import { Check, Plane, Briefcase, Heart, ArrowRight, X, MapPin, Loader2, Shield } from "lucide-react";
 import { useTheme } from '../context/ThemeContext';
 import travelinsurance2 from "../assets/travelinsurance2.jpeg";
+import {useAuth} from "../context/AuthContext";
 
 const Package = () => {
   const { isDarkTheme } = useTheme();
   const [selectedPackage, setSelectedPackage] = useState(null);
+  const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { user } = useAuth();
 
-  const packages = {
-    flight: {
-      icon: <Plane className="w-8 h-8" />,
-      title: "Flight Delay Protection",
-      features: ["2+ hour delay coverage", "Automatic verification", "Multi-oracle data", "No claim forms"],
-      coverage: "$250-1000",
-      premium: "$5-15 per flight",
-      details: "Covers delays, cancellations, and missed connections with instant automated payouts"
+  // Fetch packages from backend
+  useEffect(() => {
+    const fetchPackages = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await axios.get('http://localhost:5000/api/packages');
+        
+        if (response.data.success) {
+          setPackages(response.data.data);
+        } else {
+          setError('Failed to fetch packages');
+        }
+      } catch (err) {
+        console.error('Error fetching packages:', err);
+        setError(err.response?.data?.message || 'Failed to fetch packages');
+        
+        // Fallback to mock data if API fails (for demo purposes)
+        setPackages(getMockPackages());
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPackages();
+  }, []);
+
+  // Mock data fallback for demo/hackathon
+  const getMockPackages = () => [
+    {
+      _id: "1",
+      name: "Flight Delay Protection - Basic",
+      type: "FLIGHT_DELAY",
+      coverage: 250,
+      premium: 12.50,
+      description: "Get compensated for flight delays over 2 hours",
+      features: [
+        "Automatic delay detection",
+        "Instant payout",
+        "Covers all airlines",
+        "No paperwork required"
+      ],
+      duration: 24,
+      claimsProcess: "Automatically triggered when flight delay exceeds 2 hours",
+      payoutTime: 5,
+      category: "BASIC",
+      active: true
     },
-    baggage: {
-      icon: <Briefcase className="w-8 h-8" />,
-      title: "Baggage Protection",
-      features: ["Lost luggage", "Delayed baggage", "Essential items", "24/7 support"],
-      coverage: "$500-2000",
-      premium: "$8-20 per trip",
-      details: "Comprehensive baggage coverage with quick resolution and emergency support"
+    {
+      _id: "2",
+      name: "Baggage Protection",
+      type: "BAGGAGE",
+      coverage: 500,
+      premium: 8.75,
+      description: "Coverage for lost, delayed, or damaged baggage",
+      features: [
+        "Covers lost luggage",
+        "Delayed baggage compensation",
+        "Essential items coverage",
+        "24/7 support"
+      ],
+      duration: 72,
+      claimsProcess: "File claim through app with photos and documentation",
+      payoutTime: 15,
+      category: "STANDARD",
+      active: true
     },
-    medical: {
-      icon: <Heart className="w-8 h-8" />,
-      title: "Medical Add-on",
-      features: ["Emergency medical", "Hospitalization", "Medical evacuation", "Telemedicine"],
-      coverage: "$10,000-50,000",
-      premium: "$15-30 per week",
-      details: "Global medical coverage including emergency evacuation and telemedicine services"
+    {
+      _id: "3",
+      name: "Emergency Medical Coverage",
+      type: "MEDICAL",
+      coverage: 10000,
+      premium: 45.00,
+      description: "Emergency medical expenses coverage while traveling",
+      features: [
+        "Hospitalization coverage",
+        "Emergency evacuation",
+        "Medical consultation",
+        "Prescription coverage"
+      ],
+      duration: 168,
+      category: "PREMIUM",
+      active: true
     }
+  ];
+
+  // Get icon based on package type
+  const getPackageIcon = (type) => {
+    switch (type) {
+      case 'FLIGHT_DELAY':
+        return <Plane className="w-8 h-8" />;
+      case 'BAGGAGE':
+        return <Briefcase className="w-8 h-8" />;
+      case 'MEDICAL':
+        return <Heart className="w-8 h-8" />;
+      case 'TRIP_CANCELLATION':
+        return <Shield className="w-8 h-8" />;
+      default:
+        return <Shield className="w-8 h-8" />;
+    }
+  };
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2
+    }).format(amount);
   };
 
   // Animation variants
@@ -59,22 +150,46 @@ const Package = () => {
     }
   };
 
-  const slideInFromBottom = {
-    hidden: { opacity: 0, y: 100 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.8,
-        ease: "easeOut"
-      }
-    }
-  };
+  if (loading) {
+    return (
+      <section className={`pt-32 pb-20 px-6 min-h-screen flex items-center justify-center ${
+        isDarkTheme
+          ? 'bg-gradient-to-br from-[#030B1D] via-[#172e60] to-[#030B1D]'
+          : 'bg-gradient-to-br from-blue-50 to-white'
+      }`}>
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-500" />
+          <p className={isDarkTheme ? 'text-blue-300' : 'text-blue-600'}>
+            Loading insurance packages...
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  if (error && packages.length === 0) {
+    return (
+      <section className={`pt-32 pb-20 px-6 min-h-screen flex items-center justify-center ${
+        isDarkTheme
+          ? 'bg-gradient-to-br from-[#030B1D] via-[#172e60] to-[#030B1D]'
+          : 'bg-gradient-to-br from-blue-50 to-white'
+      }`}>
+        <div className="text-center">
+          <div className="text-red-500 mb-4">Error: {error}</div>
+          <p className={isDarkTheme ? 'text-blue-300' : 'text-blue-600'}>
+            Using demo data for presentation
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <section className={`pt-32 pb-20 px-6 ${isDarkTheme
-      ? 'bg-gradient-to-br from-[#030B1D] via-[#172e60] to-[#030B1D]'
-      : 'bg-gradient-to-br from-blue-50 to-white'}`}>
+    <section className={`pt-32 pb-20 px-6 ${
+      isDarkTheme
+        ? 'bg-gradient-to-br from-[#030B1D] via-[#172e60] to-[#030B1D]'
+        : 'bg-gradient-to-br from-blue-50 to-white'
+    }`}>
       <div className="container mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -93,6 +208,13 @@ const Package = () => {
           }`}>
             Flexible, parametric insurance products designed for the modern traveler
           </p>
+          {error && (
+            <div className={`mt-4 p-3 rounded-lg ${
+              isDarkTheme ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-700'
+            }`}>
+              ⚠️ {error} - Showing demo data
+            </div>
+          )}
         </motion.div>
 
         {/* Package Grid */}
@@ -103,13 +225,13 @@ const Package = () => {
           viewport={{ once: true, amount: 0.3 }}
           className="grid md:grid-cols-3 gap-8 mb-16"
         >
-          {Object.entries(packages).map(([key, pkg]) => (
+          {packages.map((pkg) => (
             <motion.div
-              key={key}
+              key={pkg._id}
               variants={itemVariants}
               whileHover={{ y: -5 }}
               className="relative group cursor-pointer"
-              onClick={() => setSelectedPackage(key)}
+              onClick={() => setSelectedPackage(pkg)}
             >
               <div className={`absolute inset-0 rounded-2xl transform group-hover:scale-105 transition-all duration-300 ${
                 isDarkTheme ? 'bg-blue-700/15' : 'bg-blue-400/10'
@@ -120,13 +242,18 @@ const Package = () => {
                   : 'bg-white/70 border-blue-200/50 group-hover:border-blue-400/50'
               }`}>
                 <div className={`mb-6 ${isDarkTheme ? 'text-blue-400' : 'text-blue-500'}`}>
-                  {pkg.icon}
+                  {getPackageIcon(pkg.type)}
                 </div>
                 <h3 className={`text-2xl font-semibold mb-4 ${
                   isDarkTheme ? 'text-white' : 'text-slate-800'
-                }`}>{pkg.title}</h3>
+                }`}>{pkg.name}</h3>
+                <p className={`text-sm mb-4 ${
+                  isDarkTheme ? 'text-blue-200' : 'text-blue-600'
+                }`}>
+                  {pkg.description}
+                </p>
                 <div className="space-y-3 mb-6">
-                  {pkg.features.map((feature, index) => (
+                  {pkg.features.slice(0, 4).map((feature, index) => (
                     <div key={index} className="flex items-center">
                       <Check className={`w-5 h-5 mr-3 flex-shrink-0 ${
                         isDarkTheme ? 'text-green-400' : 'text-green-500'
@@ -146,7 +273,7 @@ const Package = () => {
                     </span>
                     <span className={`font-semibold ${
                       isDarkTheme ? 'text-white' : 'text-slate-800'
-                    }`}>{pkg.coverage}</span>
+                    }`}>{formatCurrency(pkg.coverage)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className={isDarkTheme ? 'text-blue-300' : 'text-blue-500'}>
@@ -154,7 +281,7 @@ const Package = () => {
                     </span>
                     <span className={`font-semibold ${
                       isDarkTheme ? 'text-green-400' : 'text-green-500'
-                    }`}>{pkg.premium}</span>
+                    }`}>{formatCurrency(pkg.premium)}</span>
                   </div>
                 </div>
                 <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -232,12 +359,12 @@ const Package = () => {
                     <div className={`mr-4 ${
                       isDarkTheme ? 'text-blue-400' : 'text-blue-500'
                     }`}>
-                      {packages[selectedPackage].icon}
+                      {getPackageIcon(selectedPackage.type)}
                     </div>
                     <h3 className={`text-2xl font-semibold ${
                       isDarkTheme ? 'text-white' : 'text-slate-800'
                     }`}>
-                      {packages[selectedPackage].title}
+                      {selectedPackage.name}
                     </h3>
                   </div>
                   <button
@@ -248,7 +375,7 @@ const Package = () => {
                   </button>
                 </div>
                 <p className={`mb-6 ${isDarkTheme ? 'text-blue-200' : 'text-blue-600'}`}>
-                  {packages[selectedPackage].details}
+                  {selectedPackage.description}
                 </p>
                 <div className="grid md:grid-cols-2 gap-6 mb-6">
                   <div className={`rounded-xl p-4 ${
@@ -260,7 +387,7 @@ const Package = () => {
                     <div className={`font-semibold text-xl ${
                       isDarkTheme ? 'text-white' : 'text-slate-800'
                     }`}>
-                      {packages[selectedPackage].coverage}
+                      {formatCurrency(selectedPackage.coverage)}
                     </div>
                   </div>
                   <div className={`rounded-xl p-4 ${
@@ -272,7 +399,7 @@ const Package = () => {
                     <div className={`font-semibold text-xl ${
                       isDarkTheme ? 'text-green-400' : 'text-green-500'
                     }`}>
-                      {packages[selectedPackage].premium}
+                      {formatCurrency(selectedPackage.premium)}
                     </div>
                   </div>
                 </div>
@@ -280,7 +407,7 @@ const Package = () => {
                   <div className={`font-semibold mb-3 ${
                     isDarkTheme ? 'text-white' : 'text-slate-800'
                   }`}>Includes:</div>
-                  {packages[selectedPackage].features.map((feature, index) => (
+                  {selectedPackage.features.map((feature, index) => (
                     <div key={index} className="flex items-center">
                       <Check className={`w-5 h-5 mr-3 flex-shrink-0 ${
                         isDarkTheme ? 'text-green-400' : 'text-green-500'
@@ -290,6 +417,16 @@ const Package = () => {
                       </span>
                     </div>
                   ))}
+                </div>
+                <div className={`mb-6 p-4 rounded-xl ${
+                  isDarkTheme ? 'bg-blue-900/30' : 'bg-blue-50'
+                }`}>
+                  <div className={`font-semibold mb-2 ${
+                    isDarkTheme ? 'text-blue-300' : 'text-blue-600'
+                  }`}>Claims Process:</div>
+                  <p className={isDarkTheme ? 'text-blue-200' : 'text-blue-600'}>
+                    {selectedPackage.claimsProcess}
+                  </p>
                 </div>
                 <button className={`w-full py-4 px-6 rounded-xl font-semibold transition-colors flex items-center justify-center space-x-2 ${
                   isDarkTheme

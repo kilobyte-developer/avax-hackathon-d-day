@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import {
   Shield,
@@ -25,6 +25,7 @@ import SettingsPage from "./Settings";
 import WalletPage from "./Wallet";
 import NotificationsPage from "./Notifications";
 import globalcoverage from "../assets/globalcoverage.jpeg";
+import { useAuth } from "../context/AuthContext";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -33,6 +34,7 @@ const Dashboard = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const {  isLoading } = useAuth();
 
   // SOFT light theme palette: bg-[#F3F6F9], cards bg-[#f8fafc], border-[#E2E8F0], text-[#293549]
   const LIGHT_PANEL_BG = "bg-[#f8fafc]";
@@ -60,6 +62,11 @@ const Dashboard = () => {
     localStorage.setItem("dashboardTheme", theme);
   }, [theme]);
 
+
+  // Dummy data
+  
+
+  
   const [activePolicies] = useState([
     {
       id: 1,
@@ -191,6 +198,10 @@ const Dashboard = () => {
     if (window.innerWidth < 1024) setSidebarOpen(false);
   };
   const handleThemeChange = (newTheme) => setTheme(newTheme);
+
+    if (isLoading) {
+    return <>loading.....</>
+  }
 
   // ---- Custom Card for Filling Space in the Left Column ----
   const TravelTipsCard = () => (
