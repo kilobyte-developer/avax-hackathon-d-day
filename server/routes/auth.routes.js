@@ -100,12 +100,12 @@ router.get('/google', (req, res, next) => {
 router.get('/google/callback', (req, res, next) => {
   console.log('Google OAuth callback hit');
   passport.authenticate('google', {
-    failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=auth_failed`
+    failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=auth_failed`
   })(req, res, next);
 }, (req, res) => {
   // Successful authentication
   console.log('Authentication successful for user:', req.user.email);
-  res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/dashboard`);
+  res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/dashboard`);
 });
 
 // Get current user
