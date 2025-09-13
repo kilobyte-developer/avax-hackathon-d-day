@@ -1,0 +1,24 @@
+{
+  "pages": {
+    "/page": [
+      "static/chunks/ce5c4_next_dist_03c75d30._.js",
+      "static/chunks/NFTTicketingBNB_src_app_favicon_ico_mjs_18bea9e9._.js",
+      "static/chunks/[root-of-the-server]__bb782d13._.css",
+      "static/chunks/ce5c4_3856bf4c._.js",
+      "static/chunks/NFTTicketingBNB_src_components_Navbar_tsx_61572b5b._.js",
+      "static/chunks/NFTTicketingBNB_src_app_layout_tsx_1181362c._.js",
+      "static/chunks/ce5c4_next_dist_client_components_builtin_global-error_f7ef883b.js",
+      "static/chunks/NFTTicketingBNB_src_components_HeroSection_tsx_385b551b._.js",
+      "static/chunks/NFTTicketingBNB_src_app_page_tsx_f7ef883b._.js",
+      "static/chunks/[turbopack]_browser_dev_hmr-client_hmr-client_ts_1c69503d._.js",
+      "static/chunks/ce5c4_next_dist_compiled_react-dom_3e9007d5._.js",
+      "static/chunks/ce5c4_next_dist_compiled_next-devtools_index_35f255a8.js",
+      "static/chunks/ce5c4_next_dist_compiled_945a67fb._.js",
+      "static/chunks/ce5c4_next_dist_client_9c7df708._.js",
+      "static/chunks/ce5c4_next_dist_22005638._.js",
+      "static/chunks/ce5c4_@swc_helpers_cjs_eea5d754._.js",
+      "static/chunks/NFTTicketingBNB_a0ff3932._.js",
+      "static/chunks/turbopack-NFTTicketingBNB_0837eae6._.js"
+    ]
+  }
+}
