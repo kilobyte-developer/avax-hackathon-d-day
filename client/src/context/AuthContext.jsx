@@ -1,53 +1,177 @@
-import React, { createContext, useState, useEffect } from 'react';
-import { ethers } from 'ethers';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import authService from '../services/auth.service';
 
-export const AuthContext = createContext();
+const AuthContext = createContext();
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
 export const AuthProvider = ({ children }) => {
-  const [account, setAccount] = useState(null);
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const checkWalletConnection = async () => {
-      if (window.ethereum) {
-        try {
-          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-          if (accounts.length > 0) {
-            setAccount(accounts[0]);
-          }
-        } catch (error) {
-          console.error("Error checking for wallet connection:", error);
-        }
-      }
-    };
-    checkWalletConnection();
+  // Update auth state
+  const updateAuthState = useCallback((authData) => {
+    setIsAuthenticated(authData.isAuthenticated);
+    setUser(authData.user);
+    setError(null);
   }, []);
 
-  const login = async () => {
-    if (window.ethereum) {
-      try {
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const accounts = await provider.send("eth_requestAccounts", []);
-        const signer = provider.getSigner();
-        const message = "Please sign this message to log in to NFTicket.";
-        await signer.signMessage(message);
-        setAccount(accounts[0]);
-        return accounts[0];
-      } catch (error) {
-        console.error("Login failed:", error);
-        return null;
-      }
-    } else {
-      alert("Please install MetaMask!");
-      return null;
-    }
-  };
+  // Handle auth state changes
+  const handleAuthChange = useCallback((authData) => {
+    updateAuthState(authData);
+  }, [updateAuthState]);
 
-  const logout = () => {
-    setAccount(null);
+  // Initialize auth state
+  const initializeAuth = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const authStatus = await authService.initialize();
+      updateAuthState({
+        isAuthenticated: authStatus.isAuthenticated,
+        user: authStatus.user
+      });
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+      setError(error.message);
+      updateAuthState({
+        isAuthenticated: false,
+        user: null
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [updateAuthState]);
+
+  // Login function
+  const login = useCallback(async () => {
+    try {
+      setError(null);
+      const result = authService.signInWithGoogle();
+      return result;
+    } catch (error) {
+      setError(error.message);
+      return { success: false, error: error.message };
+    }
+  }, []);
+
+  // Logout function
+  const logout = useCallback(async () => {
+    try {
+      setError(null);
+      const result = await authService.logout();
+      
+      if (result.success) {
+        updateAuthState({
+          isAuthenticated: false,
+          user: null
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      setError(error.message);
+      return { success: false, error: error.message };
+    }
+  }, [updateAuthState]);
+
+  // Refresh user data
+  const refreshUser = useCallback(async () => {
+    try {
+      setError(null);
+      const result = await authService.refreshUser();
+      
+      if (result.success) {
+        setUser(result.user);
+      }
+      
+      return result;
+    } catch (error) {
+      setError(error.message);
+      return { success: false, error: error.message };
+    }
+  }, []);
+
+  // Update user profile
+  const updateProfile = useCallback(async (profileData) => {
+    try {
+      setError(null);
+      const result = await authService.updateProfile(profileData);
+      
+      if (result.success) {
+        setUser(result.user);
+      }
+      
+      return result;
+    } catch (error) {
+      setError(error.message);
+      return { success: false, error: error.message };
+    }
+  }, []);
+
+  // Initialize auth on mount
+  useEffect(() => {
+    initializeAuth();
+    
+    // Setup auth listener
+    const removeListener = authService.addAuthListener(handleAuthChange);
+    
+    // Cleanup
+    return () => {
+      removeListener();
+    };
+  }, [initializeAuth, handleAuthChange]);
+
+  // Handle auth callback from URL
+  const handleAuthCallback = useCallback(async () => {
+    try {
+      setError(null);
+      const result = await authService.handleAuthCallback();
+      
+      if (result.success) {
+        updateAuthState({
+          isAuthenticated: true,
+          user: result.user
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      setError(error.message);
+      return { success: false, error: error.message };
+    }
+  }, [updateAuthState]);
+
+  const contextValue = {
+    // State
+    user,
+    isAuthenticated,
+    isLoading,
+    error,
+    
+    // Actions
+    login,
+    logout,
+    refreshUser,
+    updateProfile,
+    handleAuthCallback,
+    initializeAuth,
+    
+    // Utils
+    clearError: () => setError(null)
   };
 
   return (
-    <AuthContext.Provider value={{ account, login, logout }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

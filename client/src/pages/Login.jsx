@@ -1,106 +1,115 @@
-// src/pages/Login.jsx
 import React, { useState, useRef, useEffect } from "react";
 import {
   Shield,
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  LogIn,
-  Zap,
   ArrowLeft,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
+import authService from "../services/auth.service";
 import wolf from "../assets/wolf.png";
 import loginLightBg from "../assets/loginlightbg.png";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isMagicLinkSent, setIsMagicLinkSent] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [authError, setAuthError] = useState("");
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
   const typingTimeout = useRef(null);
   const { isDarkTheme } = useTheme();
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    // Email validation
-    if (!email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = "Email is invalid";
-    }
-
-    // Password validation
-    if (!password.trim()) {
-      newErrors.password = "Password is required";
-    } else if (password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
-
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      navigate("/dashboard");
-    }, 1500);
-  };
-
-  const handleMagicLink = () => {
-    if (!email.trim()) {
-      setErrors({ email: "Email is required for magic link" });
-      return;
-    }
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setErrors({ email: "Please enter a valid email address" });
-      return;
-    }
-
-    setErrors({});
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsMagicLinkSent(true);
-      setTimeout(() => setIsMagicLinkSent(false), 5000);
-    }, 1000);
-  };
-
-  // Handle typing detection for eye animation and clear errors on typing
+  // Check for auth errors from URL params and handle callbacks
   useEffect(() => {
-    if (email || password) {
-      setIsTyping(true);
-      if (typingTimeout.current) clearTimeout(typingTimeout.current);
+    const handleAuthFlow = async () => {
+      setIsCheckingAuth(true);
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      
+      // Handle auth errors
+      if (urlParams.get('error') === 'auth_failed') {
+        setAuthError("Authentication failed. Please try again.");
+        // Clear the error from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
 
-      // Clear errors when user starts typing
-      setErrors({});
-
-      typingTimeout.current = setTimeout(() => {
-        setIsTyping(false);
-      }, 1000);
-    } else {
-      setIsTyping(false);
-    }
-
-    return () => {
-      if (typingTimeout.current) clearTimeout(typingTimeout.current);
+      // Check if user is already authenticated
+      try {
+        const authStatus = await authService.checkAuthStatus();
+        if (authStatus.isAuthenticated) {
+          const redirectTo = authService.getPostLoginRedirect();
+          navigate(redirectTo);
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+      }
+      
+      setIsCheckingAuth(false);
     };
-  }, [email, password]);
+
+    handleAuthFlow();
+  }, [navigate]);
+
+  // Save intended destination for post-login redirect
+  useEffect(() => {
+    const from = location.state?.from?.pathname;
+    if (from && from !== '/login') {
+      authService.savePostLoginRedirect(from);
+    }
+  }, [location.state]);
+
+  const handleGoogleSignIn = async () => {
+    setAuthError("");
+    setIsLoading(true);
+    
+    try {
+      // This will redirect to Google OAuth
+      const result = authService.signInWithGoogle();
+      
+      if (!result.success) {
+        setAuthError(result.error || "Failed to initiate Google sign-in");
+        setIsLoading(false);
+      }
+      // If successful, user will be redirected and component will unmount
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      setAuthError("Failed to sign in with Google. Please try again.");
+      setIsLoading(false);
+    }
+  };
+
+  // Simulate typing for eye animation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsTyping(true);
+      setTimeout(() => setIsTyping(false), 2000);
+    }, 8000); // Every 8 seconds, simulate typing for 2 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Show loading spinner while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div className={`h-screen w-screen flex items-center justify-center ${
+        isDarkTheme
+          ? "bg-gradient-to-br from-[#030B1D] via-[#030B1D] to-[#030B1D]"
+          : "bg-gradient-to-br from-slate-200 via-cyan-100 to-slate-300"
+      }`}>
+        <div className="flex flex-col items-center space-y-4">
+          <div className={`w-8 h-8 border-2 rounded-full animate-spin ${
+            isDarkTheme 
+              ? "border-blue-500/30 border-t-blue-500" 
+              : "border-cyan-500/30 border-t-cyan-500"
+          }`} />
+          <p className={isDarkTheme ? "text-blue-300" : "text-slate-600"}>
+            Checking authentication...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -311,20 +320,6 @@ const Login = () => {
             </div>
           </div>
         )}
-
-        {/* Subtle breathing animation when not typing */}
-        <style>
-          {`
-            @keyframes pulse {
-              0% { opacity: 0.2; }
-              50% { opacity: 0.4; }
-              100% { opacity: 0.2; }
-            }
-            .pulse {
-              animation: pulse 3s infinite ease-in-out;
-            }
-          `}
-        </style>
       </div>
 
       {/* Login Form Section */}
@@ -332,25 +327,25 @@ const Login = () => {
         <div className="w-full max-w-xl">
           {/* Login Card */}
           <div
-            className={`rounded-2xl p-6 shadow-2xl backdrop-blur-xl border ${
+            className={`rounded-2xl p-8 shadow-2xl backdrop-blur-xl border ${
               isDarkTheme
                 ? "bg-[#172E60]/30 border-blue-500/30"
                 : "bg-white/80 border-cyan-200/60 shadow-cyan-200/20"
             }`}
           >
             {/* Logo */}
-            <div className="text-center mb-6">
+            <div className="text-center mb-8">
               <div
-                className={`w-14 h-14 mx-auto rounded-xl flex items-center justify-center mb-3 ${
+                className={`w-16 h-16 mx-auto rounded-xl flex items-center justify-center mb-4 ${
                   isDarkTheme
                     ? "bg-gradient-to-r from-blue-600 to-blue-500"
                     : "bg-gradient-to-r from-cyan-500 to-cyan-600"
                 }`}
               >
-                <Shield className="w-7 h-7 text-white" />
+                <Shield className="w-8 h-8 text-white" />
               </div>
               <h1
-                className={`text-2xl font-light bg-gradient-to-r bg-clip-text text-transparent ${
+                className={`text-3xl font-light bg-gradient-to-r bg-clip-text text-transparent mb-2 ${
                   isDarkTheme
                     ? "from-blue-300 via-blue-400 to-blue-300"
                     : "from-cyan-600 via-slate-700 to-cyan-600"
@@ -359,253 +354,99 @@ const Login = () => {
                 Welcome Back
               </h1>
               <p
-                className={
-                  isDarkTheme ? "text-blue-300 mt-1" : "text-slate-600 mt-1"
-                }
+                className={`text-lg ${
+                  isDarkTheme ? "text-blue-300" : "text-slate-600"
+                }`}
               >
-                Sign in to your account
+                Sign in with your Google account
               </p>
             </div>
 
-            {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label
-                  htmlFor="email"
-                  className={`block text-sm font-medium mb-1 ${
-                    isDarkTheme ? "text-blue-300" : "text-slate-700"
-                  }`}
-                >
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail
-                    className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
-                      isDarkTheme ? "text-blue-400" : "text-cyan-600"
-                    }`}
-                  />
-                  <input
-                    type="email"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className={`w-full pl-9 pr-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                      errors.email ? "border-red-500 focus:ring-red-500" : ""
-                    } ${
-                      isDarkTheme
-                        ? "bg-[#172E60]/30 border-blue-500/30 text-white placeholder-blue-400"
-                        : "bg-white/60 border-cyan-200/50 text-slate-800 placeholder-slate-500"
-                    }`}
-                    placeholder="Enter your email"
-                    required
-                  />
+            {/* Error Messages */}
+            {authError && (
+              <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+                <p className="text-red-400 text-sm text-center">{authError}</p>
+              </div>
+            )}
+
+            {/* Google Sign-In Button - Main CTA */}
+            <button
+              onClick={handleGoogleSignIn}
+              disabled={isLoading}
+              className={`w-full text-white py-4 rounded-xl font-semibold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-4 mb-8 shadow-lg hover:shadow-xl ${
+                isDarkTheme
+                  ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 hover:scale-105"
+                  : "bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 hover:scale-105"
+              }`}
+            >
+              {isLoading ? (
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-sm">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285f4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34a853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#fbbc05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="#ea4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
                 </div>
-                {errors.email && (
-                  <p className="text-red-400 text-sm mt-1">{errors.email}</p>
-                )}
-              </div>
-
-              <div>
-                <label
-                  htmlFor="password"
-                  className={`block text-sm font-medium mb-1 ${
-                    isDarkTheme ? "text-blue-300" : "text-slate-700"
-                  }`}
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock
-                    className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
-                      isDarkTheme ? "text-blue-400" : "text-cyan-600"
-                    }`}
-                  />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    id="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className={`w-full pl-9 pr-11 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                      errors.password ? "border-red-500 focus:ring-red-500" : ""
-                    } ${
-                      isDarkTheme
-                        ? "bg-[#172E60]/30 border-blue-500/30 text-white placeholder-blue-400"
-                        : "bg-white/60 border-cyan-200/50 text-slate-800 placeholder-slate-500"
-                    }`}
-                    placeholder="Enter your password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className={`absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors ${
-                      isDarkTheme
-                        ? "text-blue-400 hover:text-blue-300"
-                        : "text-cyan-600 hover:text-slate-700"
-                    }`}
-                    aria-label={
-                      showPassword ? "Hide password" : "Show password"
-                    }
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="text-red-400 text-sm mt-1">{errors.password}</p>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    className={`w-4 h-4 rounded focus:ring-blue-500 ${
-                      isDarkTheme
-                        ? "text-blue-600 bg-[#172E60]/30 border-blue-500/30"
-                        : "text-cyan-600 bg-white border-cyan-300"
-                    }`}
-                  />
-                  <span
-                    className={`ml-2 text-sm ${
-                      isDarkTheme ? "text-blue-300" : "text-slate-700"
-                    }`}
-                  >
-                    Remember me
-                  </span>
-                </label>
-                <button
-                  type="button"
-                  className={`text-sm transition-colors ${
-                    isDarkTheme
-                      ? "text-blue-400 hover:text-blue-300"
-                      : "text-cyan-600 hover:text-slate-800"
-                  }`}
-                >
-                  Forgot password?
-                </button>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading || !email.trim() || !password.trim()}
-                className={`w-full text-white py-2.5 rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 ${
-                  isDarkTheme
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-                    : "bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700"
-                }`}
-              >
-                {isLoading ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <LogIn className="w-4 h-4" />
-                )}
-                <span>{isLoading ? "Signing in..." : "Sign In"}</span>
-              </button>
-            </form>
-
-            {/* Magic Link Option */}
-            <div className="mt-4">
-              <button
-                onClick={handleMagicLink}
-                disabled={isLoading || !email.trim() || isMagicLinkSent}
-                className={`w-full text-white py-2.5 rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 ${
-                  isDarkTheme
-                    ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                    : "bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800"
-                }`}
-              >
-                {isMagicLinkSent ? (
-                  <>
-                    <Zap className="w-4 h-4" />
-                    <span>Magic Link Sent!</span>
-                  </>
-                ) : isLoading ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4" />
-                    <span>Send Magic Link</span>
-                  </>
-                )}
-              </button>
-              {isMagicLinkSent && (
-                <p
-                  className={`text-sm mt-1 text-center ${
-                    isDarkTheme ? "text-blue-400" : "text-slate-600"
-                  }`}
-                >
-                  Check your email for the magic link
-                </p>
               )}
-            </div>
+              <span>{isLoading ? "Signing in..." : "Continue with Google"}</span>
+            </button>
 
-            {/* Divider */}
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div
-                  className={`w-full border-t ${
-                    isDarkTheme ? "border-blue-500/30" : "border-cyan-300/60"
-                  }`}
-                ></div>
+            {/* Features/Benefits */}
+            <div className={`text-center space-y-3 mb-6 ${isDarkTheme ? "text-blue-200" : "text-slate-600"}`}>
+              <div className="flex items-center justify-center space-x-2 text-sm">
+                <div className={`w-2 h-2 rounded-full ${isDarkTheme ? "bg-blue-400" : "bg-cyan-500"}`}></div>
+                <span>Secure authentication with Google</span>
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span
-                  className={`px-2 ${
-                    isDarkTheme
-                      ? "bg-[#172E60]/30 text-blue-400"
-                      : "bg-white text-slate-600"
-                  }`}
-                >
-                  Or continue with
-                </span>
+              <div className="flex items-center justify-center space-x-2 text-sm">
+                <div className={`w-2 h-2 rounded-full ${isDarkTheme ? "bg-blue-400" : "bg-cyan-500"}`}></div>
+                <span>No password required</span>
               </div>
-            </div>
-
-            {/* Social Login */}
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                className={`flex items-center justify-center space-x-2 py-2 rounded-xl transition-all ${
-                  isDarkTheme
-                    ? "bg-[#172E60]/30 border border-blue-500/30 text-blue-300 hover:bg-[#172E60]/50 hover:text-white"
-                    : "bg-white/80 border border-cyan-200/60 text-slate-700 hover:bg-cyan-50/80 hover:text-slate-900"
-                }`}
-              >
-                <div className="w-4 h-4 bg-white rounded-full flex items-center justify-center">
-                  <span className="text-black font-bold text-xs">G</span>
-                </div>
-                <span>Google</span>
-              </button>
-              <button
-                className={`flex items-center justify-center space-x-2 py-2 rounded-xl transition-all ${
-                  isDarkTheme
-                    ? "bg-[#172E60]/30 border border-blue-500/30 text-blue-300 hover:bg-[#172E60]/50 hover:text-white"
-                    : "bg-white/80 border border-cyan-200/60 text-slate-700 hover:bg-cyan-50/80 hover:text-slate-900"
-                }`}
-              >
-                <div className="w-4 h-4 bg-black rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-xs">G</span>
-                </div>
-                <span>GitHub</span>
-              </button>
+              <div className="flex items-center justify-center space-x-2 text-sm">
+                <div className={`w-2 h-2 rounded-full ${isDarkTheme ? "bg-blue-400" : "bg-cyan-500"}`}></div>
+                <span>Quick and easy access</span>
+              </div>
             </div>
 
             {/* Sign up link */}
-            <div className="text-center mt-6">
-              <p className={isDarkTheme ? "text-blue-300" : "text-slate-700"}>
+            <div className="text-center">
+              <p className={`text-sm ${isDarkTheme ? "text-blue-300" : "text-slate-600"}`}>
                 Don't have an account?{" "}
                 <button
-                  className={`font-medium transition-colors ${
+                  onClick={handleGoogleSignIn}
+                  disabled={isLoading}
+                  className={`font-medium transition-colors underline ${
                     isDarkTheme
                       ? "text-blue-400 hover:text-blue-300"
                       : "text-cyan-500 hover:text-cyan-600"
                   }`}
                 >
-                  Sign up
+                  Sign up with Google
                 </button>
+              </p>
+            </div>
+
+            {/* Terms and Privacy */}
+            <div className="text-center mt-6 pt-4 border-t border-opacity-20">
+              <p className={`text-xs ${isDarkTheme ? "text-blue-400/70" : "text-slate-500"}`}>
+                By signing in, you agree to our{" "}
+                <button className="underline hover:opacity-80">Terms of Service</button>
+                {" "}and{" "}
+                <button className="underline hover:opacity-80">Privacy Policy</button>
               </p>
             </div>
           </div>
