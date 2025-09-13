@@ -10,6 +10,7 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/auth.routes');
 const connectDB = require('./config/db.config');
+const packageRoutes = require('./routes/packages.routes');
 
 const app = express();
 
@@ -52,6 +53,7 @@ const limiter = rateLimit({
 });
 
 app.use('/auth', limiter);
+
 
 // CORS configuration
 app.use(cors({
@@ -112,6 +114,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/api/packages', packageRoutes);
 
 // Health check route
 app.get('/', (req, res) => {
