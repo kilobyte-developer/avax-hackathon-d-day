@@ -1,12 +1,30 @@
 import React, { useState } from 'react';
 import { Plus, Download, Upload, Copy, ExternalLink, Wallet as WalletIcon, Menu, X } from 'lucide-react';
 import DashboardSidebar from '../components/DashboardSidebar';
+//SMC integrations
+import { useAccount } from 'wagmi';
+import { contractAddress, contractABI } from '../../contractConfig';
+
 
 const Wallet = () => {
   const [connectedWallets, setConnectedWallets] = useState([
     { id: 1, name: 'MetaMask', address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e', balance: 3245.80, isConnected: true },
     { id: 2, name: 'WalletConnect', address: '0x8932a5Cc6634C0532925a3b844Bc454e4438f44e', balance: 0, isConnected: false }
-  ]);
+  ])
+  const { address, isConnected } = useAccount();
+;
+const [flightInput, setFlightInput] = useState(""); // user input for flight
+
+const { config: buyConfig } = usePrepareContractWrite({
+  address: contractAddress,
+  abi: contractABI,
+  functionName: 'buyPolicy',
+  args: [flightInput],
+  value: BigInt(100000000000000000), // 0.1 AVAX in wei; can later make dynamic
+});
+
+const { write: buyPolicy } = useContractWrite(buyConfig);
+
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('wallet');
@@ -303,6 +321,21 @@ const Wallet = () => {
                       >
                         {wallet.isConnected ? 'Disconnect' : 'Connect Wallet'}
                       </button>
+                      <button 
+  onClick={() => buyPolicy?.()} 
+  className="w-full mt-4 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+>
+  Buy Policy
+</button>
+
+<input
+  type="text"
+  placeholder="Flight ID"
+  value={flightInput}
+  onChange={(e) => setFlightInput(e.target.value)}
+  className="w-full mt-2 p-2 rounded-lg border"
+/>
+
                     </div>
                   ))}
                 </div>

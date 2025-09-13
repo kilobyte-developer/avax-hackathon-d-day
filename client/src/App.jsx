@@ -31,6 +31,10 @@ import Blog from './pages/Blog.jsx';
 import FAQ from './pages/FAQ.jsx';  
 import Compliance from './pages/Compliance.jsx';
 import Careers from './pages/Careers.jsx';
+//SMC integrations
+// import { useAccount, useContractRead, usePrepareContractWrite, useContractWrite } from 'wagmi';
+// import { contractAddress, contractABI } from '../contractConfig.js';
+
 
 const AppContent = () => {
   const location = useLocation();
