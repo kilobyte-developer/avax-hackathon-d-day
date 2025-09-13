@@ -60,9 +60,9 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
-      process.env.CLIENT_URL || 'http://localhost:3000',
-      'http://localhost:3000',
-      'https://localhost:3000'
+      process.env.CLIENT_URL || 'http://localhost:5173',
+      'http://localhost:5173',
+      'https://localhost:5173'
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -230,7 +230,7 @@ const server = app.listen(PORT, () => {
   console.log(`
   🚀 Server is running on port ${PORT}
   🌍 Environment: ${process.env.NODE_ENV || 'development'}
-  🔗 Client URL: ${process.env.CLIENT_URL || 'http://localhost:3000'}
+  🔗 Client URL: ${process.env.CLIENT_URL || 'http://localhost:5173'}
   📅 Started at: ${new Date().toISOString()}
   `);
 });
