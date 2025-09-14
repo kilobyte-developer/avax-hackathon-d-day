@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, {useEffect, useState } from 'react';
 import { Plus, Download, Upload, Copy, ExternalLink, Wallet as WalletIcon, Menu, X } from 'lucide-react';
 import DashboardSidebar from '../components/DashboardSidebar';
+import { ethers } from 'ethers';
+import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../contractConfigEthers'; 
 
 const Wallet = () => {
   const [connectedWallets, setConnectedWallets] = useState([
@@ -8,15 +10,23 @@ const Wallet = () => {
     { id: 2, name: 'WalletConnect', address: '0x8932a5Cc6634C0532925a3b844Bc454e4438f44e', balance: 0, isConnected: false }
   ]);
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('wallet');
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('dashboardTheme') || 'dark';
-    }
-    return 'dark';
-  });
+const [sidebarOpen, setSidebarOpen] = useState(false);
+const [activeTab, setActiveTab] = useState('wallet');
+const [theme, setTheme] = useState(() => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('dashboardTheme') || 'dark';
+  }
+  return 'dark';
+});
 
+const [connectedAddress, setConnectedAddress] = useState(null);
+const [isMetaMaskAvailable, setIsMetaMaskAvailable] = useState(false);
+const [poolBalance, setPoolBalance] = useState(null);
+const [flightInput, setFlightInput] = useState("");
+const [premiumInput, setPremiumInput] = useState("0.1"); // default AVAX amount (string)
+const [policyIdInput, setPolicyIdInput] = useState("");
+const [txLoading, setTxLoading] = useState(false);
+const [adminAddress, setAdminAddress] = useState(null);
   // State for modals
   const [showAddWallet, setShowAddWallet] = useState(false);
   const [showDeposit, setShowDeposit] = useState(false);
@@ -78,6 +88,158 @@ const Wallet = () => {
       )
     );
   };
+// Ask MetaMask to connect and set connected address
+async function connectMetaMask() {
+  try {
+    if (!window.ethereum) throw new Error("MetaMask not detected");
+    setIsMetaMaskAvailable(true);
+
+    // request accounts
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    setConnectedAddress(accounts[0]);
+
+    // listen for account changes
+    window.ethereum.on('accountsChanged', (accs) => {
+      setConnectedAddress(accs[0] || null);
+    });
+    // listen for network changes (we can refresh pool)
+    window.ethereum.on('chainChanged', (chainId) => {
+      // optional: reload or re-check
+      refreshPoolBalance();
+    });
+
+    // ensure network is Avalanche Fuji
+    await ensureFujiNetwork();
+  } catch (err) {
+    console.error("connectMetaMask:", err);
+    alert(err.message || "Failed to connect MetaMask");
+  }
+}
+
+// Ensure MetaMask is on Avalanche Fuji; prompt user to switch/add network if not
+async function ensureFujiNetwork() {
+  if (!window.ethereum) return;
+  const desiredChainId = '0xA869'; // 43113 in hex
+  try {
+    const current = await window.ethereum.request({ method: 'eth_chainId' });
+    if (current !== desiredChainId) {
+      // try to switch
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: desiredChainId }],
+      });
+    }
+  } catch (switchError) {
+    // If the chain is not added to MetaMask, request to add it
+    if (switchError.code === 4902 || /Unrecognized chain/i.test(String(switchError.message))) {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: desiredChainId,
+            chainName: 'Avalanche Fuji C-Chain',
+            rpcUrls: ['https://api.avax-test.network/ext/bc/C/rpc'],
+            nativeCurrency: { name: 'Avalanche', symbol: 'AVAX', decimals: 18 },
+            blockExplorerUrls: ['https://testnet.snowtrace.io']
+          }],
+        });
+      } catch (addErr) {
+        console.error('add chain error', addErr);
+        throw addErr;
+      }
+    } else {
+      console.error('switch chain error', switchError);
+      throw switchError;
+    }
+  }
+}
+
+// Get ethers provider + signer
+function getProviderAndSigner() {
+  if (!window.ethereum) throw new Error('MetaMask not found');
+  const provider = new ethers.BrowserProvider(window.ethereum); // ethers v6
+  const signer = provider.getSigner();
+  return { provider, signer };
+}
+
+// Create contract instance connected to signer (for write txs)
+async function getContractWithSigner() {
+  const { signer } = getProviderAndSigner();
+  return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, await signer);
+}
+
+// Create contract instance read-only (connected to provider)
+async function getContractProvider() {
+  const { provider } = getProviderAndSigner();
+  return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+}
+
+// Buy a policy: flight string + premium string (like "0.1")
+async function buyPolicyOnChain() {
+  if (!flightInput) return alert("Enter flight ID");
+  if (!premiumInput) return alert("Enter premium amount in AVAX (e.g., 0.1)");
+  try {
+    setTxLoading(true);
+    await ensureFujiNetwork();
+    const contract = await getContractWithSigner();
+    const value = ethers.parseEther(premiumInput); // BigInt
+    const tx = await contract.buyPolicy(flightInput, { value });
+    console.log("tx hash:", tx.hash);
+    // wait for miner
+    await tx.wait();
+    alert("Policy purchased — tx mined: " + tx.hash);
+    // refresh pool
+    await refreshPoolBalance();
+  } catch (err) {
+    console.error("buyPolicyOnChain:", err);
+    alert(err?.message || "Buy failed");
+  } finally {
+    setTxLoading(false);
+  }
+}
+
+// Admin approves claim
+async function approveClaimOnChain() {
+  if (policyIdInput === "") return alert("Enter policy ID");
+  try {
+    setTxLoading(true);
+    await ensureFujiNetwork();
+    const contract = await getContractWithSigner();
+    const tx = await contract.approveClaim(Number(policyIdInput));
+    await tx.wait();
+    alert("Claim approved — tx mined: " + tx.hash);
+    await refreshPoolBalance();
+  } catch (err) {
+    console.error("approveClaimOnChain:", err);
+    alert(err?.message || "Approve failed");
+  } finally {
+    setTxLoading(false);
+  }
+}
+
+// Get on-chain pool balance and admin address
+async function refreshPoolBalance() {
+  try {
+    const contract = await getContractProvider();
+    const bal = await contract.getPoolBalance(); // BigInt
+    setPoolBalance(ethers.formatEther(bal)); // string
+    // fetch admin address
+    const adm = await contract.admin();
+    setAdminAddress(adm);
+  } catch (err) {
+    console.error("refreshPoolBalance:", err);
+  }
+}
+useEffect(() => {
+  setIsMetaMaskAvailable(Boolean(window.ethereum));
+  // try to auto-refresh pool balance (if metamask present)
+  if (window.ethereum) {
+    refreshPoolBalance().catch(console.error);
+    // optionally, set interval refresh every 12s
+    const id = setInterval(() => refreshPoolBalance().catch(console.error), 12000);
+    return () => clearInterval(id);
+  }
+}, []);
 
   const disconnectWallet = (walletId) => {
     setConnectedWallets(wallets => 
@@ -430,6 +592,39 @@ const Wallet = () => {
               }`}>
                 <h2 className={`text-xl font-semibold mb-6 ${theme === 'light' ? LIGHT_HEADER_TEXT : 'text-white'}`}>Quick Actions</h2>
                 <div className="space-y-3">
+
+                  <div className="mb-4">
+  <label className="block mb-1">Flight ID</label>
+  <input
+    type="text"
+    value={flightInput}
+    onChange={(e) => setFlightInput(e.target.value)}
+    placeholder="AI202"
+    className="w-full p-2 rounded-lg border mb-2"
+  />
+
+  <label className="block mb-1">Premium (AVAX)</label>
+  <input
+    type="text"
+    value={premiumInput}
+    onChange={(e) => setPremiumInput(e.target.value)}
+    placeholder="0.1"
+    className="w-full p-2 rounded-lg border mb-2"
+  />
+
+  <button
+    onClick={buyPolicyOnChain}
+    disabled={txLoading}
+    className="w-full py-2 rounded-lg bg-blue-600 text-white"
+  >
+    {txLoading ? "Processing..." : "Buy Policy"}
+  </button>
+</div>
+<div className="flex justify-between items-center">
+  <span>Pool Balance (on-chain)</span>
+  <span className="font-semibold">{poolBalance ?? "Loading..."} AVAX</span>
+</div>
+
                   <button 
                     onClick={() => setShowDeposit(true)}
                     className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-colors ${
