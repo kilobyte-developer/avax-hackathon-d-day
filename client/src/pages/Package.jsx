@@ -1,7 +1,7 @@
 // src/components/Package.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { motion, AnimatePresence } from "framer-motion";
+import {  AnimatePresence } from "framer-motion";
 import { Check, Plane, Briefcase, Heart, ArrowRight, X, MapPin, Loader2, Shield } from "lucide-react";
 import { useTheme } from '../context/ThemeContext';
 import travelinsurance2 from "../assets/travelinsurance2.jpeg";
