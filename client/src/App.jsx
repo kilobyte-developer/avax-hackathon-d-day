@@ -87,7 +87,7 @@ const AppContent = () => {
         <Route path="/dashboard/wallet" element={<Wallet />} />
         <Route path="/dashboard/notifications" element={<Notifications />} />
 
-        <Route path="/dashboard/store/checkout" element={<CheckoutForm />} />
+        <Route path="/dashboard/store/checkout/:id" element={<CheckoutForm />} />
 
       </Routes>
       {showFooter && <Footer />}

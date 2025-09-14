@@ -236,7 +236,7 @@ const Store = () => {
                 <button
                   onClick={() => {
                     localStorage.setItem("selectedPackage", JSON.stringify(selectedPackage));
-                    navigate("/dashboard/store/checkout");
+                    navigate(`/dashboard/store/checkout/${selectedPackage._id || selectedPackage.id}`);
                   }}
                   className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium"
                 >
