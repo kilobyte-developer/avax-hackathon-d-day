@@ -31,6 +31,7 @@ import Blog from './pages/Blog.jsx';
 import FAQ from './pages/FAQ.jsx';  
 import Compliance from './pages/Compliance.jsx';
 import Careers from './pages/Careers.jsx';
+import CheckoutForm from './pages/CheckoutForm.jsx';
 //SMC integrations
 // import { useAccount, useContractRead, usePrepareContractWrite, useContractWrite } from 'wagmi';
 // import { contractAddress, contractABI } from '../contractConfig.js';
@@ -85,6 +86,9 @@ const AppContent = () => {
         <Route path="/dashboard/settings" element={<Settings />} />
         <Route path="/dashboard/wallet" element={<Wallet />} />
         <Route path="/dashboard/notifications" element={<Notifications />} />
+
+        <Route path="/dashboard/store/checkout" element={<CheckoutForm />} />
+
       </Routes>
       {showFooter && <Footer />}
     </>

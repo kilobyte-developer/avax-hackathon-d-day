@@ -14,6 +14,24 @@ const packageRoutes = require('./routes/packages.routes');
 
 const app = express();
 
+// ✅ Cloudinary + Multer
+const { v2: cloudinary } = require("cloudinary"); // ✅ import first
+require("dotenv").config();
+
+app.use(cors());
+app.use(express.json());
+
+// ✅ configure right after importing
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// ✅ Checkout route
+const checkoutRoutes = require("./routes/checkout.routes");
+app.use("/api/checkout", checkoutRoutes);
+
 // Environment variables validation
 const requiredEnvVars = [
   'MONGODB_URI',
@@ -29,7 +47,7 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-// Connect to MongoDB
+// ✅ Connect to MongoDB
 connectDB();
 
 // Trust proxy if behind reverse proxy (for production)
@@ -53,7 +71,6 @@ const limiter = rateLimit({
 });
 
 app.use('/auth', limiter);
-
 
 // CORS configuration
 app.use(cors({
