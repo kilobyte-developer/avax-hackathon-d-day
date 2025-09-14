@@ -28,9 +28,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// ✅ Checkout route
-const checkoutRoutes = require("./routes/checkout.routes");
-app.use("/api/checkout", checkoutRoutes);
 
 // Environment variables validation
 const requiredEnvVars = [

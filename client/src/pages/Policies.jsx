@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, Download, Calendar, FileText, Shield, Menu, X } from 'lucide-react';
 import DashboardSidebar from '../components/DashboardSidebar';
 
@@ -15,8 +15,73 @@ const Policies = () => {
 
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [modalType, setModalType] = useState(null); // "details" or "certificate"
+  const [userPolicies, setUserPolicies] = useState([]);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+
+  // Load policies from localStorage on component mount
+  useEffect(() => {
+    loadUserPolicies();
+  }, []);
+
+
+
+  const loadUserPolicies = () => {
+    try {
+      // Get policies from localStorage
+      const checkoutHistory = JSON.parse(localStorage.getItem('checkoutHistory') || '[]');
+      const latestCheckout = JSON.parse(localStorage.getItem('latestCheckout') || 'null');
+      
+      // Combine all policies (history + latest)
+      let allPolicies = [...checkoutHistory];
+      if (latestCheckout && !checkoutHistory.some(policy => 
+        policy.policyNumber === latestCheckout.policyNumber)) {
+        allPolicies.push(latestCheckout);
+      }
+      
+      // Transform checkout data into policy format
+      const policies = allPolicies.map((checkout, index) => {
+        // Determine status based on dates
+        const today = new Date();
+        const endDate = new Date(checkout.returnDate);
+        const isExpired = today > endDate;
+        const status = isExpired ? 'expired' : 'active';
+        
+        // Generate a policy number if not exists
+        const policyNumber = checkout.policyNumber || `POL-${Date.now().toString().slice(-6)}-${index}`;
+        
+        // Extract flight info from flightNumber (assuming format like "BA 249")
+        const flightParts = checkout.flightNumber ? checkout.flightNumber.split(' ') : ['', ''];
+        const airline = flightParts[0] || 'Unknown';
+        const flightNum = flightParts[1] || '000';
+
+        // make random route for demo purposes random 2 cities from the list of cities
+        const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Miami', 'San Francisco', 'Seattle', 'Boston', 'Denver', 'Atlanta'];
+        const route = `${cities[Math.floor(Math.random() * cities.length)]} → ${cities[Math.floor(Math.random() * cities.length)]}`;
+        
+        return {
+          id: index + 1,
+          type: checkout.selectedPackage?.type || 'FLIGHT_DELAY',
+          flight: checkout.flightNumber || 'N/A',
+          route: route,
+          departure: checkout.bookingDate ? new Date(checkout.bookingDate).toLocaleString() : 'Unknown',
+          coverage: `$${checkout.selectedPackage?.coverage || '0'}`,
+          premium: `${checkout.selectedPackage?.premium || '0'} AVAX`,
+          status: status,
+          policyNumber: policyNumber,
+          startDate: checkout.bookingDate || 'Unknown',
+          endDate: checkout.returnDate || 'Unknown',
+          // Include all checkout data for details view
+          checkoutData: checkout
+        };
+      });
+      
+      setUserPolicies(policies);
+    } catch (error) {
+      console.error('Error loading policies from localStorage:', error);
+      setUserPolicies([]);
+    }
+  };
 
   const handleThemeChange = (newTheme) => {
     setTheme(newTheme);
@@ -37,62 +102,7 @@ const Policies = () => {
   const LIGHT_LABEL_TEXT = "text-[#6782a0]";
   const LIGHT_MAIN_TEXT = "text-[#38537a]";
 
-  const policies = [
-    {
-      id: 1,
-      type: 'FLIGHT_DELAY',
-      flight: 'BA 249',
-      route: 'LHR → JFK',
-      departure: '2024-03-15 14:30',
-      coverage: '$250',
-      premium: '$12.50',
-      status: 'active',
-      policyNumber: 'POL-001234',
-      startDate: '2024-03-15',
-      endDate: '2024-03-16'
-    },
-    {
-      id: 2,
-      type: 'BAGGAGE',
-      flight: 'DL 89',
-      route: 'ATL → CDG',
-      departure: '2024-03-20 09:15',
-      coverage: '$500',
-      premium: '$8.75',
-      status: 'active',
-      policyNumber: 'POL-001235',
-      startDate: '2024-03-20',
-      endDate: '2024-03-21'
-    },
-    {
-      id: 3,
-      type: 'MEDICAL',
-      flight: 'UA 456',
-      route: 'SFO → LHR',
-      departure: '2024-02-10 16:45',
-      coverage: '$2,000',
-      premium: '$25.00',
-      status: 'expired',
-      policyNumber: 'POL-001236',
-      startDate: '2024-02-10',
-      endDate: '2024-02-17'
-    },
-    {
-      id: 4,
-      type: 'TRIP_CANCELLATION',
-      flight: 'AA 789',
-      route: 'DFW → CDG',
-      departure: '2024-01-05 11:20',
-      coverage: '$1,500',
-      premium: '$18.50',
-      status: 'claimed',
-      policyNumber: 'POL-001237',
-      startDate: '2024-01-05',
-      endDate: '2024-01-06'
-    }
-  ];
-
-  const filteredPolicies = policies.filter((p) => activeFilter === 'all' || p.status === activeFilter);
+  const filteredPolicies = userPolicies.filter((p) => activeFilter === 'all' || p.status === activeFilter);
 
   const getStatusIcon = (status) => {
     const colors = {
@@ -110,6 +120,45 @@ const Policies = () => {
       claimed: theme === 'light' ? 'text-blue-700 bg-blue-100' : 'text-blue-400 bg-blue-400/10',
     };
     return map[status] || (theme === 'light' ? 'text-gray-700 bg-gray-100' : 'text-gray-400 bg-gray-400/10');
+  };
+
+  const downloadCertificate = (policy) => {
+    // Create a simple PDF certificate content
+    const certificateContent = `
+      INSURANCE POLICY CERTIFICATE
+      =============================
+      
+      Policy Number: ${policy.policyNumber}
+      Type: ${policy.type.replace('_', ' ')}
+      Flight: ${policy.flight}
+      Coverage: ${policy.coverage}
+      Premium: ${policy.premium}
+      Period: ${policy.startDate} to ${policy.endDate}
+      Status: ${policy.status}
+      
+      Insured Person:
+      Name: ${policy.checkoutData.name}
+      Email: ${policy.checkoutData.email}
+      Phone: ${policy.checkoutData.phone}
+      
+      Terms and Conditions:
+      This policy provides coverage according to the terms specified
+      during purchase. Please refer to your policy documents for
+      complete details.
+      
+      Issued on: ${new Date().toLocaleDateString()}
+    `;
+    
+    // Create a blob and download link
+    const blob = new Blob([certificateContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `policy-certificate-${policy.policyNumber}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -153,91 +202,122 @@ const Policies = () => {
                 View and manage all your insurance policies
               </p>
             </div>
+            <button
+              onClick={loadUserPolicies}
+              className="mt-4 lg:mt-0 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+            >
+              Refresh Policies
+            </button>
           </div>
 
-          {/* Filter Tabs */}
-          <div className={`flex space-x-1 rounded-xl p-1 border backdrop-blur-sm mb-8 ${
-            theme === 'light'
-              ? `${LIGHT_PANEL_BG} ${LIGHT_CARD_BORDER}`
-              : 'bg-slate-800/50 border-slate-700/30'
-          }`}>
-            {['all', 'active', 'expired', 'claimed'].map((filter) => (
+          {/* Empty state */}
+          {userPolicies.length === 0 && (
+            <div className={`rounded-2xl p-8 text-center border backdrop-blur-sm ${
+              theme === 'light'
+                ? `${LIGHT_PANEL_BG} ${LIGHT_CARD_BORDER}`
+                : 'bg-slate-800/50 border-slate-700/50'
+            }`}>
+              <Shield className="w-16 h-16 mx-auto mb-4 text-blue-400" />
+              <h3 className="text-xl font-semibold mb-2">No Policies Found</h3>
+              <p className={theme === 'light' ? LIGHT_LABEL_TEXT : 'text-blue-300'}>
+                You haven't purchased any insurance policies yet.
+              </p>
               <button
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
-                className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 capitalize ${
-                  activeFilter === filter
-                    ? 'bg-blue-600 text-white'
-                    : theme === 'light'
-                      ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
-                      : 'text-blue-300 hover:text-white hover:bg-slate-700/50'
-                }`}
+                onClick={() => window.location.href = '/dashboard/store'}
+                className="mt-4 px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
               >
-                {filter}
+                Browse Insurance Plans
               </button>
-            ))}
-          </div>
+            </div>
+          )}
 
-          {/* Policies Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {filteredPolicies.map((policy) => (
-              <div key={policy.id} className={`rounded-2xl p-6 border backdrop-blur-sm hover:border-blue-500/30 transition-all duration-300 ${
+          {/* Filter Tabs (only show if there are policies) */}
+          {userPolicies.length > 0 && (
+            <>
+              <div className={`flex space-x-1 rounded-xl p-1 border backdrop-blur-sm mb-8 ${
                 theme === 'light'
                   ? `${LIGHT_PANEL_BG} ${LIGHT_CARD_BORDER}`
-                  : 'bg-slate-800/50 border-slate-700/50'
+                  : 'bg-slate-800/50 border-slate-700/30'
               }`}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      theme === 'light' ? 'bg-blue-100' : 'bg-blue-600/20'
-                    }`}>
-                      <Shield className={`w-5 h-5 ${theme === 'light' ? 'text-blue-500' : 'text-blue-400'}`} />
-                    </div>
-                    <div>
-                      <h3 className={`text-lg font-medium ${theme === 'light' ? LIGHT_HEADER_TEXT : 'text-white'}`}>
-                        {policy.type.replace('_', ' ')}
-                      </h3>
-                      <p className={`text-sm ${theme === 'light' ? LIGHT_LABEL_TEXT : 'text-blue-300'}`}>{policy.policyNumber}</p>
-                    </div>
-                  </div>
-                  <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${getStatusColor(policy.status)}`}>
-                    {getStatusIcon(policy.status)}
-                    <span className="text-sm capitalize">{policy.status}</span>
-                  </div>
-                </div>
-
-                {/* Policy details */}
-                <div className={`space-y-3 text-sm mb-6 ${theme === 'light' ? LIGHT_LABEL_TEXT : 'text-blue-300'}`}>
-                  <div className="flex justify-between"><span>Flight</span><span>{policy.flight}</span></div>
-                  <div className="flex justify-between"><span>Route</span><span>{policy.route}</span></div>
-                  <div className="flex justify-between"><span>Departure</span><span>{policy.departure}</span></div>
-                  <div className="flex justify-between"><span>Coverage</span><span>{policy.coverage}</span></div>
-                  <div className="flex justify-between"><span>Premium</span><span>{policy.premium}</span></div>
-                  <div className="flex justify-between"><span>Duration</span><span>{policy.startDate} → {policy.endDate}</span></div>
-                </div>
-
-                {/* Buttons */}
-                <div className={`flex space-x-2 pt-4 border-t ${theme === 'light' ? 'border-[#e3e6ea]' : 'border-slate-600/30'}`}>
+                {['all', 'active', 'expired', 'claimed'].map((filter) => (
                   <button
-                    onClick={() => { setSelectedPolicy(policy); setModalType('details'); }}
-                    className="flex-1 px-4 py-2 rounded-lg text-sm flex items-center justify-center space-x-2 bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    <Eye className="w-4 h-4" /><span>Details</span>
-                  </button>
-                  <button
-                    onClick={() => { setSelectedPolicy(policy); setModalType('certificate'); }}
-                    className={`flex-1 px-4 py-2 rounded-lg text-sm flex items-center justify-center space-x-2 border ${
-                      theme === 'light'
-                        ? 'bg-[#e6ecf3] border-[#d2d7dd] text-blue-600 hover:text-blue-700 hover:bg-[#dee2e6]'
-                        : 'bg-slate-600/50 border-slate-500/30 text-blue-300 hover:text-white hover:bg-slate-600/30'
+                    key={filter}
+                    onClick={() => setActiveFilter(filter)}
+                    className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 capitalize ${
+                      activeFilter === filter
+                        ? 'bg-blue-600 text-white'
+                        : theme === 'light'
+                          ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                          : 'text-blue-300 hover:text-white hover:bg-slate-700/50'
                     }`}
                   >
-                    <Download className="w-4 h-4" /><span>Certificate</span>
+                    {filter}
                   </button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+
+              {/* Policies Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                {filteredPolicies.map((policy) => (
+                  <div key={policy.id} className={`rounded-2xl p-6 border backdrop-blur-sm hover:border-blue-500/30 transition-all duration-300 ${
+                    theme === 'light'
+                      ? `${LIGHT_PANEL_BG} ${LIGHT_CARD_BORDER}`
+                      : 'bg-slate-800/50 border-slate-700/50'
+                  }`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          theme === 'light' ? 'bg-blue-100' : 'bg-blue-600/20'
+                        }`}>
+                          <Shield className={`w-5 h-5 ${theme === 'light' ? 'text-blue-500' : 'text-blue-400'}`} />
+                        </div>
+                        <div>
+                          <h3 className={`text-lg font-medium ${theme === 'light' ? LIGHT_HEADER_TEXT : 'text-white'}`}>
+                            {policy.type.replace('_', ' ')}
+                          </h3>
+                          <p className={`text-sm ${theme === 'light' ? LIGHT_LABEL_TEXT : 'text-blue-300'}`}>{policy.policyNumber}</p>
+                        </div>
+                      </div>
+                      <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${getStatusColor(policy.status)}`}>
+                        {getStatusIcon(policy.status)}
+                        <span className="text-sm capitalize">{policy.status}</span>
+                      </div>
+                    </div>
+
+                    {/* Policy details */}
+                    <div className={`space-y-3 text-sm mb-6 ${theme === 'light' ? LIGHT_LABEL_TEXT : 'text-blue-300'}`}>
+                      <div className="flex justify-between"><span>Flight</span><span>{policy.flight}</span></div>
+                      <div className="flex justify-between"><span>Route</span><span>{policy.route}</span></div>
+                      <div className="flex justify-between"><span>Departure</span><span>{policy.departure}</span></div>
+                      <div className="flex justify-between"><span>Coverage</span><span>{policy.coverage}</span></div>
+                      <div className="flex justify-between"><span>Premium</span><span>{policy.premium}</span></div>
+                      <div className="flex justify-between"><span>Duration</span><span>{policy.startDate} → {policy.endDate}</span></div>
+                    </div>
+
+                    {/* Buttons */}
+                    <div className={`flex space-x-2 pt-4 border-t ${theme === 'light' ? 'border-[#e3e6ea]' : 'border-slate-600/30'}`}>
+                      <button
+                        onClick={() => { setSelectedPolicy(policy); setModalType('details'); }}
+                        className="flex-1 px-4 py-2 rounded-lg text-sm flex items-center justify-center space-x-2 bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        <Eye className="w-4 h-4" /><span>Details</span>
+                      </button>
+                      <button
+                        onClick={() => downloadCertificate(policy)}
+                        className={`flex-1 px-4 py-2 rounded-lg text-sm flex items-center justify-center space-x-2 border ${
+                          theme === 'light'
+                            ? 'bg-[#e6ecf3] border-[#d2d7dd] text-blue-600 hover:text-blue-700 hover:bg-[#dee2e6]'
+                            : 'bg-slate-600/50 border-slate-500/30 text-blue-300 hover:text-white hover:bg-slate-600/30'
+                        }`}
+                      >
+                        <Download className="w-4 h-4" /><span>Certificate</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Modal */}
           {selectedPolicy && modalType && (
@@ -253,34 +333,64 @@ const Policies = () => {
                 {modalType === 'details' ? (
                   <>
                     <h2 className="text-2xl font-semibold mb-4">Policy Details</h2>
-                    <ul className="space-y-2">
-                      <li><strong>Policy Number:</strong> {selectedPolicy.policyNumber}</li>
-                      <li><strong>Type:</strong> {selectedPolicy.type.replace('_', ' ')}</li>
-                      <li><strong>Flight:</strong> {selectedPolicy.flight}</li>
-                      <li><strong>Route:</strong> {selectedPolicy.route}</li>
-                      <li><strong>Departure:</strong> {selectedPolicy.departure}</li>
-                      <li><strong>Coverage:</strong> {selectedPolicy.coverage}</li>
-                      <li><strong>Premium:</strong> {selectedPolicy.premium}</li>
-                      <li><strong>Duration:</strong> {selectedPolicy.startDate} → {selectedPolicy.endDate}</li>
-                      <li><strong>Status:</strong> {selectedPolicy.status}</li>
-                    </ul>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><strong>Policy Number:</strong></div>
+                        <div>{selectedPolicy.policyNumber}</div>
+                        
+                        <div><strong>Type:</strong></div>
+                        <div>{selectedPolicy.type.replace('_', ' ')}</div>
+                        
+                        <div><strong>Flight:</strong></div>
+                        <div>{selectedPolicy.flight}</div>
+                        
+                        <div><strong>Route:</strong></div>
+                        <div>{selectedPolicy.route}</div>
+                        
+                        <div><strong>Departure:</strong></div>
+                        <div>{selectedPolicy.departure}</div>
+                        
+                        <div><strong>Coverage:</strong></div>
+                        <div>{selectedPolicy.coverage}</div>
+                        
+                        <div><strong>Premium:</strong></div>
+                        <div>{selectedPolicy.premium}</div>
+                        
+                        <div><strong>Duration:</strong></div>
+                        <div>{selectedPolicy.startDate} → {selectedPolicy.endDate}</div>
+                        
+                        <div><strong>Status:</strong></div>
+                        <div className="capitalize">{selectedPolicy.status}</div>
+                      </div>
+                      
+                      <div className="pt-4 mt-4 border-t">
+                        <h3 className="font-semibold mb-2">Insured Person</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div><strong>Name:</strong></div>
+                          <div>{selectedPolicy.checkoutData.name}</div>
+                          
+                          <div><strong>Email:</strong></div>
+                          <div>{selectedPolicy.checkoutData.email}</div>
+                          
+                          <div><strong>Phone:</strong></div>
+                          <div>{selectedPolicy.checkoutData.phone}</div>
+                        </div>
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <>
                     <h2 className="text-2xl font-semibold mb-4">Policy Certificate</h2>
                     <p className="mb-4">Download the certificate for <strong>{selectedPolicy.policyNumber}</strong>.</p>
                     <button
-                      onClick={() => alert(`Downloading certificate for ${selectedPolicy.policyNumber}`)}
+                      onClick={() => downloadCertificate(selectedPolicy)}
                       className="px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                      Download PDF
-                    </button>
+                    > Download Certificate</button>
                   </>
                 )}
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>
