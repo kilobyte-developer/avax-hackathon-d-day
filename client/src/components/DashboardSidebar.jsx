@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-const DashboardSidebar = ({ isOpen, toggleSidebar, activeTab, setActiveTab, theme, onThemeChange }) => {
+const DashboardSidebar = ({ isOpen, toggleSidebar, setActiveTab, theme, onThemeChange }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
